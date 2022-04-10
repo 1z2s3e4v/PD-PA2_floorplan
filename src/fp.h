@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <bits/stdc++.h> 
 using namespace std;
 
 class Net;
@@ -20,6 +21,7 @@ class Block;
 
 int outLine_x = 0;
 int outLine_y = 0;
+double outline_aspect_ratio = 1.0;
 int block_num = 0;
 int terminal_num = 0;
 int net_num = 0;
@@ -28,11 +30,11 @@ double alpha = 0.0;
 int MAX_X=-1;
 int MAX_Y=-1;
 int A;
-int W;
+double W;
 int overA;
 int OutOfRange;
-double minCost = 9999999;
-double fp_minCost = 9999999;
+double minCost = (double)INT_MAX;
+double fp_minCost = (double)INT_MAX;
 int count_cost_notUpdate = 0;
 
 
@@ -87,8 +89,8 @@ public:
     int h = 0;
     int x = 0;
     int y = 0;
-    int mid_x = 0;
-    int mid_y = 0;
+    double mid_x = 0.0;
+    double mid_y = 0.0;
     int overArea = 0;
     map<string,Net*> m_map_net;
 };
@@ -110,8 +112,12 @@ void Net::addBlock(Block* b){
     b->addNet(this);
 }
 double Net::updateCost(){
-    int min_x = 9999999, min_y = 9999999, max_x = -1, max_y = -1;
+    double min_x = 9999999, min_y = 9999999, max_x = -1, max_y = -1;
     for(unsigned int i = 0;i<m_vec_Terminal.size();i++){
+        /*max_x = max(m_vec_Terminal[i]->x, max_x);
+        max_y = max(m_vec_Terminal[i]->y, max_y);
+        min_x = min(m_vec_Terminal[i]->x, min_x);
+        min_y = min(m_vec_Terminal[i]->x, min_y);*/
         if(m_vec_Terminal[i]->x > max_x)
             max_x = m_vec_Terminal[i]->x;
         if(m_vec_Terminal[i]->y > max_y)
@@ -148,8 +154,8 @@ double Net::updateCost(){
     //cout << "("<< max_x << "-" << min_x << ")+(" << max_y << "-" << min_y << ")" << " = " << HPWL<<"\n";
 
     HPWL = ((max_x-min_x) + (max_y-min_y));
-    A = MAX_X*MAX_Y;
-    W += HPWL;
+    //A = MAX_X*MAX_Y;
+    //W += HPWL;
     return HPWL;
 }
 //-----------------------------------------------------------------------------
@@ -174,11 +180,11 @@ void Block::addNet(Net* net){
 }
 void Block::setX(int _x){
     x = _x;
-    mid_x = x+(w/2);
+    mid_x = x+((double)w/2.0);
 }
 void Block::setY(int _y){
     y = _y;
-    mid_y = y+(h/2);
+    mid_y = y+((double)h/2.0);
 }
 int Block::compute_OverA(){
     int over_x = w, over_y = h;

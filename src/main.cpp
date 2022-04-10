@@ -1,8 +1,9 @@
 #include <fstream>
 #include <sstream>
-#include <bits/stdc++.h> 
 #include "fp.h"
+#include "drawHtml.h"
 
+void drawSvg(string);
 void rotate(Block*);
 void updateXY();
 
@@ -14,8 +15,10 @@ void readBlock(char* fileName){
         stringstream ss(line);
         string title;
         ss >> title;
-        if(title == "Outline:")
+        if(title == "Outline:"){
             ss >> outLine_x >> outLine_y;
+            outline_aspect_ratio = (double)outLine_x/outLine_y;
+        }
         else if(title == "NumBlocks:")
             ss >> block_num;
         else if(title == "NumTerminals:")
@@ -86,6 +89,21 @@ void readNet(char* fileName){
     file.close();
 }
 
+void drawSvg(string fileName){
+    string output_fileName = fileName + ".svg.html";
+    string metal_color[7] = {"black", "blue", "yellow", "green", "purple", "gray", "orange"};
+    Drawer_C* draw_svg = new Drawer_C(output_fileName);
+    draw_svg->setting(outLine_x,outLine_y,1,0,0); // outline_x outline_y scaling offset_x offset_y
+    draw_svg->start_svg();
+    draw_svg->drawRect("Outline", bBox(Pos(0,0),Pos(outLine_x,outLine_y)), "gray");
+    for(unsigned int i=0;i<vec_all_Blocks.size();i++){
+        Block *b = vec_all_Blocks[i];
+        draw_svg->drawRect(b->name, bBox(Pos(b->x,b->y),Pos(b->x+b->w,b->y+b->h)), "yellow");
+        draw_svg->drawText(b->name+"label", Pos(b->mid_x,b->mid_y), b->name);
+    }
+    draw_svg->end_svg();
+}
+
 void writeRpt(char* fileName,clock_t start){
     double runtime = (double)(clock()-start)/(double)CLOCKS_PER_SEC;
     ofstream fout(fileName);
@@ -149,9 +167,11 @@ int outLine_distence(){
 void compute_allNetCost(){
     MAX_X = -1;
     MAX_Y = -1;
+    W = 0;
     for(auto it = all_Nets.begin();it != all_Nets.end();it++){
-        it->second->updateCost();
+        W += it->second->updateCost();
     }
+    A = MAX_X*MAX_Y;
 }
 
 void compute_overArea(){
@@ -162,10 +182,19 @@ void compute_overArea(){
 }
 
 void init_Loci(){
-    random_shuffle(vec_all_Blocks.begin(),vec_all_Blocks.end());
-    pos = vec_all_Blocks;
-    random_shuffle(vec_all_Blocks.begin(),vec_all_Blocks.end());
-    neg = vec_all_Blocks;
+    for(int i=0;i<10000;++i){
+        random_shuffle(vec_all_Blocks.begin(),vec_all_Blocks.end());
+        pos = vec_all_Blocks;
+        random_shuffle(vec_all_Blocks.begin(),vec_all_Blocks.end());
+        neg = vec_all_Blocks;
+        updateXY();
+
+        double aspect_ratio = (double)MAX_X/MAX_Y;
+        if(abs(aspect_ratio - outline_aspect_ratio) < 0.2){
+            cout << "\nInit Aspect Ratio = " << aspect_ratio << " in " << i << "-th round.\n";
+            break;
+        }
+    }
 }
 
 void updateXY(){
@@ -270,15 +299,22 @@ void FloorPlan(char* outFileName, clock_t start){
     int epoch = 0;
     int state = -1;
     double T = (double)INT_MAX; // init temperature
-    
+    int count_not_update = 0;
     while((double)(clock()-start)/(double)CLOCKS_PER_SEC < 290){ // origin: !inside_Outline()
-        if(epoch % 1000 == 0 && state != epoch/1000){
-            state = epoch/1000;
+        if(epoch % 10000 == 0 && state != epoch/10000){
+            state = epoch/10000;
             cout << "epoch " << epoch << "\n";
-            cout << "area: "<< A << "\n";
+            cout << "area: "<< MAX_X << " * " << MAX_Y << " = " << A << "\n";
             cout << "over area: "<< overA << "\n";
-            cout << MAX_X << " * " << MAX_Y << "\n";
             cout << "\n";
+            if(count_not_update > all_Blocks.size()*1000 && minCost != (double)INT_MAX){
+                cout << "Break for local optimal.\n";
+                break;
+            }
+            if(count_not_update > all_Blocks.size()*1000 && minCost == (double)INT_MAX){
+                cout << "Break for dead solution.\n";
+                break;
+            }
         }
         
         int ori_A=A,ori_W=W,ori_OutOfRange=OutOfRange;
@@ -294,7 +330,8 @@ void FloorPlan(char* outFileName, clock_t start){
         updateXY();
         if(T != 0.0)
             T *= 0.99;
-        double delta_C = abs(overA - ori_overA);//abs(outLine_distence() - ori_disXY);
+        double delta_C = (overA - ori_overA);//abs(outLine_distence() - ori_disXY);
+        //if()
         //cout << "T=" << T << " delta_C=" << delta_C<< " delta_C/T=" << delta_C/T << "\n";
         //cout << "SA p=" << exp(-delta_C/T) << "\n";
 
@@ -303,7 +340,12 @@ void FloorPlan(char* outFileName, clock_t start){
         if(inside_Outline() && new_cost < minCost){ // find smaller cost, write
             minCost = new_cost;
 			writeRpt(outFileName,start);
+            drawSvg(outFileName);
+            count_not_update = 0;
 		}
+        else{
+            count_not_update++;
+        }
         //overA > ori_overAoutLine_distence() > ori_disXY
         if(overA > ori_overA && !rand_access(exp(-delta_C/T))){ 
             // recovery
@@ -312,7 +354,7 @@ void FloorPlan(char* outFileName, clock_t start){
             //cout << "recovery\n";
         }
         else if(inside_Outline() && (new_cost < ori_cost || W < ori_W)){
-            epoch++;
+            //epoch++;
         }
         else if(T < 0.0000000000001 && overA > ori_overA){
             // recovery
@@ -322,8 +364,9 @@ void FloorPlan(char* outFileName, clock_t start){
         }
         else{ // smaller area or SA
             //T *= 1.15;
-            epoch++;
+            //epoch++;
         }
+        epoch++;
     }
     cout << "final epoch: " << epoch << "\n";
 }
@@ -337,17 +380,31 @@ int main(int argc,char** argv){
 	readBlock(argv[2]);
     readNet(argv[3]);
     //print_info();
-    init_Loci(); // inutial
-    updateXY();
-    //print_Loci();
 
-    while((double)(clock()-start)/(double)CLOCKS_PER_SEC < 280 || count_cost_notUpdate < 3){
-		if(minCost >= fp_minCost) count_cost_notUpdate++;
-		else count_cost_notUpdate = 0;
-        FloorPlan(argv[4],start);
+    cout << "Outline Aspect Ratio = " << outline_aspect_ratio << "\n";
+    while(count_cost_notUpdate < 3 || minCost == (double)INT_MAX){
+		if(minCost != (double)INT_MAX) {cout << "--------------------- FP Reset -----------------------\n";}
+        if(minCost >= fp_minCost) {
+            count_cost_notUpdate++;
+        }
+		else {
+            count_cost_notUpdate = 0;
+            fp_minCost = minCost;
+        }
+        
         init_Loci();
-        updateXY();
+        //updateXY();
+        FloorPlan(argv[4],start);
+        
+
+        if((clock()-start)/(double)CLOCKS_PER_SEC > 28 && minCost != (double)INT_MAX){
+            cout << "Time out break.\n";
+            break;
+        }
     }
     ofstream fout("random_seed.txt");
-    
+
+    cout << "------------------------ Finished -------------------------------\n";
+    cout << "output rpt: " << argv[4] << "\n";
+    cout << "visualization: " << argv[4] << ".svg.html\n";
 }

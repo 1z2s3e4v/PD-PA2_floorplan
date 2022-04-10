@@ -1,11 +1,12 @@
 CC=g++
 LDFLAGS=-std=c++11 -O3 -lm
-SOURCES=src/main.cpp
+SOURCES=src/main.cpp src/drawHtml.cpp
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=fp
-INCLUDES=src/fp.h
+INCLUDES=src/fp.h src/drawHtml.h
 
 a=0.5
+case=ami33
 
 all: $(SOURCES) bin/$(EXECUTABLE)
 
